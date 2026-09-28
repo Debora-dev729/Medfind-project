@@ -1,16 +1,63 @@
-# React + Vite
+# MediFind Tanzania
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+MediFind helps patients find and reserve medicines from nearby pharmacies.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```text
+medfind project/
+├── frontend/   React + Vite patient and pharmacy interface
+└── backend/    Spring Boot + PostgreSQL API
+```
 
-## React Compiler
+The older `my-react-app/` directory is an untouched Vite starter and is not the active MediFind frontend.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Run the frontend
 
-## Expanding the ESLint configuration
+```powershell
+cd frontend
+npm install
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Run the Node.js Backend Server
+
+The new Node.js backend server provides REST API endpoints for the frontend.
+
+### Quick Start
+
+1. **Install dependencies** (already done):
+   ```bash
+   npm install
+   ```
+
+2. **Setup PostgreSQL database**:
+   ```bash
+   npm run setup-db
+   ```
+   This will create the database, tables, and insert sample data.
+
+3. **Start the server**:
+   ```bash
+   npm start
+   ```
+   Server runs at `http://localhost:5000`
+
+4. **Test the connection**:
+   ```bash
+   curl http://localhost:5000/api/test
+   ```
+
+### Detailed Setup Guide
+
+See [BACKEND_SETUP.md](BACKEND_SETUP.md) for complete setup instructions including:
+- PostgreSQL installation
+- Environment configuration
+- Database initialization
+- API testing
+- Troubleshooting
+
+## Run the Java Backend (Alternative)
+
+See [backend/README.md](backend/README.md) for Spring Boot, Maven, PostgreSQL, and Docker setup.
+

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import SearchBar from '../components/SearchBar'
 import PharmacyCard from '../components/PharmacyCard'
 import Loading from '../components/Loading'
@@ -65,7 +65,12 @@ function Search() {
     <div className="page-section search-page">
       <div className="container">
         <div className="search-page-header"><div><p className="eyebrow">Search medicine</p><h1>Find what you need, nearby.</h1><p>Compare verified pharmacies and choose an option that works for you.</p></div><SearchBar initialQuery={query} compact /></div>
-        {loading ? <Loading label="Checking pharmacies" /> : error ? <div className="message-state"><h2>Something went wrong.</h2><p>Please try again in a moment.</p></div> : !query ? <div className="message-state"><h2>What medicine are you looking for?</h2><p>Search by medicine name, strength or form to see nearby options.</p></div> : (
+        {loading ? <Loading label="Loading medicine directory" /> : error ? <div className="message-state"><h2>Something went wrong.</h2><p>Please try again in a moment.</p></div> : !query ? (
+          <>
+            <div className="results-heading"><div><p className="eyebrow">Medicine directory</p><h2>Search medicines and find them nearby.</h2></div><span className="results-query">{results.length} medicines listed</span></div>
+            <div className="medicine-directory">{results.map((medicine) => <article className="medicine-directory-card" key={medicine.id}><div className="medicine-directory-heading"><div className="medicine-symbol small">+</div><div><h3>{medicine.name} <span>{medicine.strength}</span></h3><p>{medicine.form} · {medicine.description}</p></div></div><div className="directory-locations"><strong>Available at</strong>{medicine.availability.map(({ pharmacy }) => <Link to={`/pharmacies/${pharmacy.id}`} key={pharmacy.id}><span aria-hidden="true">⌖</span>{pharmacy.name}, {pharmacy.city}</Link>)}</div><Link className="directory-action" to={`/medicines/${medicine.id}`}>Compare prices and reserve <span aria-hidden="true">→</span></Link></article>)}</div>
+          </>
+        ) : (
           <>
             <div className="results-heading"><div><p className="eyebrow">Availability across Tanzania</p><h2>{sortedPharmacyResults.length} pharmacies found</h2></div><div className="results-tools"><span className="results-query">Results for “{query}”</span><button className="button button-secondary nearby-button" type="button" onClick={findNearbyPharmacies} disabled={locationState === 'loading'}><span aria-hidden="true">⌖</span>{locationState === 'loading' ? 'Finding you...' : 'Find near me'}</button></div></div>
             {locationState === 'ready' && <p className="location-message" role="status">Sorted by distance from your current location.</p>}
