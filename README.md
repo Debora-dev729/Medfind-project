@@ -1,63 +1,90 @@
 # MediFind Tanzania
 
-MediFind helps patients find and reserve medicines from nearby pharmacies.
+MediFind Tanzania is a medicine availability and pharmacy reservation platform.
+
+Patients can search for medicines, view pharmacy availability, and make reservations. Pharmacy staff can manage inventory and process reservations for their assigned pharmacy.
+
+## Technology Stack
+
+### Backend
+- Java 17
+- Spring Boot 3.4.4
+- Spring Security
+- JWT authentication
+- Spring Data JPA
+- PostgreSQL
+- Maven
+
+### Frontend
+- React 19
+- Vite
+- React Router
+- Axios
 
 ## Project Structure
 
 ```text
-medfind project/
-├── frontend/   React + Vite patient and pharmacy interface
-└── backend/    Spring Boot + PostgreSQL API
+Medfind-project/
+├── backend/
+└── frontend/
 ```
 
-The older `my-react-app/` directory is an untouched Vite starter and is not the active MediFind frontend.
+## Requirements
 
-## Run the frontend
+- Java 17
+- PostgreSQL
+- Node.js and npm
+- Git
 
-```powershell
-cd frontend
+## Run Backend
+
+```bash
+cd ~/Medfind-project/backend
+./mvnw spring-boot:run
+```
+
+Backend API: `http://localhost:8080/api`
+
+## Run Frontend
+
+```bash
+cd ~/Medfind-project/frontend
 npm install
 npm run dev
 ```
 
-## Run the Node.js Backend Server
+Frontend: `http://localhost:5173`
 
-The new Node.js backend server provides REST API endpoints for the frontend.
+## Authentication
 
-### Quick Start
+MediFind uses JWT authentication with three roles:
 
-1. **Install dependencies** (already done):
-   ```bash
-   npm install
-   ```
+- PATIENT
+- PHARMACY_STAFF
+- ADMIN
 
-2. **Setup PostgreSQL database**:
-   ```bash
-   npm run setup-db
-   ```
-   This will create the database, tables, and insert sample data.
+Pharmacy staff are restricted to their assigned pharmacy.
 
-3. **Start the server**:
-   ```bash
-   npm start
-   ```
-   Server runs at `http://localhost:5000`
+## Main Features
 
-4. **Test the connection**:
-   ```bash
-   curl http://localhost:5000/api/test
-   ```
+- Medicine search
+- Pharmacy availability
+- Pharmacy inventory management
+- Patient accounts
+- Pharmacy staff accounts
+- Pharmacy access control
+- Pharmacy closure and reopening
+- Medicine reservations
+- Reservation status tracking
 
-### Detailed Setup Guide
+## Architecture
 
-See [BACKEND_SETUP.md](BACKEND_SETUP.md) for complete setup instructions including:
-- PostgreSQL installation
-- Environment configuration
-- Database initialization
-- API testing
-- Troubleshooting
-
-## Run the Java Backend (Alternative)
-
-See [backend/README.md](backend/README.md) for Spring Boot, Maven, PostgreSQL, and Docker setup.
-
+```text
+React + Vite
+      ↓
+REST API
+      ↓
+Spring Boot
+      ↓
+PostgreSQL
+```
