@@ -1,53 +1,35 @@
-import { mockMedicines } from '../data/mockMedicines'
-import { mockPharmacies } from '../data/mockPharmacies'
+import api from './api'
 
-const INVENTORY_KEY = 'medifind_inventory'
+export const getInventory = async (pharmacyId) => {
+  if (!pharmacyId) {
+    throw new Error('Pharmacy is not assigned to this account.')
+  }
 
-const readInventory = () => {
-	try {
-		const value = localStorage.getItem(INVENTORY_KEY)
-		const inventory = value ? JSON.parse(value) : {}
-		return inventory && typeof inventory === 'object' ? inventory : {}
-	} catch {
-		return {}
-	}
+  const response = await api.get(`/pharmacies/${pharmacyId}/inventory`)
+
+  return response.data
 }
 
-const writeInventory = (inventory) => localStorage.setItem(INVENTORY_KEY, JSON.stringify(inventory))
+export const updateInventoryItem = async (
+  pharmacyId,
+  medicineId,
+  updates,
+) => {
+  if (!pharmacyId) {
+    throw new Error('Pharmacy is not assigned to this account.')
+  }
 
-const getDefaultInventory = (pharmacyId) => {
-	const pharmacy = mockPharmacies.find((item) => item.id === pharmacyId)
-	if (!pharmacy) return []
+  const response = await api.put(
+    `/pharmacies/${pharmacyId}/inventory/${medicineId}`,
+    {
+      quantity: Number(updates.quantity),
+      price:
+        updates.price === '' || updates.price == null
+          ? null
+          : Number(updates.price),
+    },
+  )
 
-	return Object.entries(pharmacy.medicines).map(([medicineId, availability]) => ({
-		medicine: mockMedicines.find((item) => item.id === medicineId),
-		availability,
-	}))
+  return response.data
 }
 
-export const getInventory = async (pharmacyId = 'afya-pharmacy') => {
-	const savedInventory = readInventory()[pharmacyId] || {}
-	return getDefaultInventory(pharmacyId).map((item) => ({
-		...item,
-		availability: { ...item.availability, ...(savedInventory[item.medicine.id] || {}) },
-	}))
-}
-
-export const updateInventoryItem = async (pharmacyId, medicineId, updates) => {
-	const quantity = Math.max(0, Number(updates.quantity) || 0)
-	const inventory = readInventory()
-	inventory[pharmacyId] = {
-		...(inventory[pharmacyId] || {}),
-		[medicineId]: {
-			  ...updates,
-			  quantity,
-			  status: quantity === 0 ? 'OUT_OF_STOCK' : quantity <= 5 ? 'LOW_STOCK' : 'AVAILABLE',
-			updated: 'just now',
-			ageInHours: 0,
-		},
-	}
-	writeInventory(inventory)
-	return getInventory(pharmacyId)
-}
-
-export const getInventoryOverrides = (pharmacyId) => readInventory()[pharmacyId] || {}
