@@ -2,11 +2,27 @@
 
 MediFind Tanzania is a medicine availability and pharmacy reservation platform.
 
-Patients can search for medicines, view pharmacy availability, and make reservations. Pharmacy staff can manage inventory and process reservations for their assigned pharmacy.
+Patients can search for medicines, view their availability at pharmacies, and make reservations. Pharmacy staff can manage medicine inventory and process reservations for their assigned pharmacy.
+
+## Main Features
+
+- Medicine search
+- Pharmacy availability
+- Pharmacy locations
+- Pharmacy inventory management
+- Patient accounts
+- Pharmacy staff accounts
+- Admin account
+- Pharmacy-specific access control
+- Temporary pharmacy closure and reopening
+- Medicine reservations
+- Reservation status tracking
+- JWT-based authentication
 
 ## Technology Stack
 
 ### Backend
+
 - Java 17
 - Spring Boot 3.4.4
 - Spring Security
@@ -16,6 +32,7 @@ Patients can search for medicines, view pharmacy availability, and make reservat
 - Maven
 
 ### Frontend
+
 - React 19
 - Vite
 - React Router
@@ -26,7 +43,13 @@ Patients can search for medicines, view pharmacy availability, and make reservat
 ```text
 Medfind-project/
 ├── backend/
+│   ├── src/
+│   ├── pom.xml
+│   └── mvnw
 └── frontend/
+    ├── src/
+    ├── package.json
+    └── vite.config.js
 ```
 
 ## Requirements
@@ -36,16 +59,37 @@ Medfind-project/
 - Node.js and npm
 - Git
 
-## Run Backend
+## Database Setup
+
+MediFind uses PostgreSQL.
+
+Default local database configuration:
+
+```text
+Database: medifind_db
+Host: localhost
+Port: 5432
+Username: postgres
+```
+
+The database must exist before starting the backend.
+
+Do not commit database passwords or other secrets to the repository.
+
+## Run the Backend
 
 ```bash
 cd ~/Medfind-project/backend
 ./mvnw spring-boot:run
 ```
 
-Backend API: `http://localhost:8080/api`
+The backend runs on `http://localhost:8080`.
 
-## Run Frontend
+The API base URL is `http://localhost:8080/api`.
+
+## Run the Frontend
+
+In another terminal:
 
 ```bash
 cd ~/Medfind-project/frontend
@@ -53,29 +97,96 @@ npm install
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`
+The frontend runs on `http://localhost:5173`.
+
+The frontend communicates with the backend through the REST API.
+
+The API URL can be overridden with the `VITE_API_URL` environment variable.
 
 ## Authentication
 
-MediFind uses JWT authentication with three roles:
+MediFind uses JWT authentication.
 
-- PATIENT
-- PHARMACY_STAFF
-- ADMIN
+The system supports three main roles:
+
+- `PATIENT`
+- `PHARMACY_STAFF`
+- `ADMIN`
 
 Pharmacy staff are restricted to their assigned pharmacy.
 
-## Main Features
+Patients can create and view their own reservations.
 
-- Medicine search
-- Pharmacy availability
-- Pharmacy inventory management
-- Patient accounts
-- Pharmacy staff accounts
-- Pharmacy access control
-- Pharmacy closure and reopening
-- Medicine reservations
-- Reservation status tracking
+## Reservations
+
+The current reservation statuses are:
+
+- `PENDING`
+- `CONFIRMED`
+- `READY_FOR_COLLECTION`
+- `COLLECTED`
+- `CANCELLED`
+- `EXPIRED`
+
+Normal flow:
+
+```text
+PENDING
+   ↓
+CONFIRMED
+   ↓
+READY_FOR_COLLECTION
+   ↓
+COLLECTED
+```
+
+Reservations can also be cancelled or expire when applicable.
+
+The backend is the source of truth for reservation status and access control.
+
+## Inventory
+
+Inventory is managed separately for each pharmacy and medicine.
+
+Pharmacy staff can update quantity and price.
+
+Availability is derived by the backend:
+
+```text
+Quantity = 0       → OUT_OF_STOCK
+Quantity 1–5       → LOW_STOCK
+Quantity > 5       → AVAILABLE
+```
+
+Inventory access is restricted to the appropriate pharmacy staff or administrator.
+
+## Pharmacy Closure
+
+Authorized pharmacy staff or administrators can temporarily close a pharmacy and later reopen it.
+
+When a pharmacy is closed, patients cannot create new reservations at that pharmacy.
+
+The pharmacy open/closed state is controlled by the backend.
+
+## API
+
+The backend provides REST API endpoints for:
+
+- Authentication
+- Medicines
+- Pharmacies
+- Pharmacy inventory
+- Reservations
+
+API base URL: `http://localhost:8080/api`.
+
+## Development Workflow
+
+1. Start PostgreSQL.
+2. Start the Spring Boot backend.
+3. Start the React/Vite frontend.
+4. Open the frontend in a browser.
+5. Use the frontend according to the logged-in user role.
 
 ## Architecture
 
@@ -88,3 +199,5 @@ Spring Boot
       ↓
 PostgreSQL
 ```
+
+The backend is responsible for authentication, authorization, inventory rules, pharmacy access control, reservations, and database persistence.

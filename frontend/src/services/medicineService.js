@@ -1,44 +1,110 @@
-import { mockMedicines } from '../data/mockMedicines'
-import { mockPharmacies } from '../data/mockPharmacies'
-import { getInventoryOverrides } from './inventoryService'
+import api from './api'
 
-const waitForMockResponse = (value) => new Promise((resolve) => {
-  window.setTimeout(() => resolve(value), 250)
-})
-
-const getMedicineAvailability = (medicineId) => mockPharmacies
-  .filter((pharmacy) => pharmacy.medicines[medicineId])
-  .map((pharmacy) => ({
-    pharmacy: {
-      ...pharmacy,
-      medicines: {
-        ...pharmacy.medicines,
-        [medicineId]: { ...pharmacy.medicines[medicineId], ...(getInventoryOverrides(pharmacy.id)[medicineId] || {}) },
-      },
+function mapPharmacy(pharmacy) {
+  return {
+    ...pharmacy,
+    coordinates: {
+      latitude: pharmacy.latitude,
+      longitude: pharmacy.longitude,
     },
-    availability: { ...pharmacy.medicines[medicineId], ...(getInventoryOverrides(pharmacy.id)[medicineId] || {}) },
-  }))
-
-export const searchMedicines = async (query = '') => {
-  const normalizedQuery = query.trim().toLowerCase()
-  const results = mockMedicines.flatMap((medicine) => {
-    const medicineMatches = `${medicine.name} ${medicine.strength} ${medicine.form}`.toLowerCase().includes(normalizedQuery)
-    const availability = getMedicineAvailability(medicine.id)
-    const matchingAvailability = availability.filter(({ pharmacy }) => `${pharmacy.name} ${pharmacy.city} ${pharmacy.address}`.toLowerCase().includes(normalizedQuery))
-    if (!normalizedQuery || medicineMatches) return [{ ...medicine, availability }]
-    if (matchingAvailability.length) return [{ ...medicine, availability: matchingAvailability }]
-    return []
-  })
-
-  return waitForMockResponse(results)
+    distance: Number.POSITIVE_INFINITY,
+  }
 }
 
-export const getMedicineById = async (id) => {
-  const medicine = mockMedicines.find((item) => item.id === id)
-  if (!medicine) return waitForMockResponse(null)
+function mapMedicineResult(item, pharmacies) {
+  const medicine = item.medicine
 
-  return waitForMockResponse({
+  return {
     ...medicine,
-    availability: getMedicineAvailability(medicine.id),
-  })
+    availability: (item.availability || [])
+      .filter((availability) => availability.quantity > 0 && availability.status !== 'OUT_OF_STOCK')
+      .map((availability) => {
+        const pharmacy = pharmacies.find(
+          (item) => item.id === availability.pharmacyId,
+        )
+
+        if (!pharmacy) return null
+
+        return {
+          pharmacy: mapPharmacy(pharmacy),
+          availability: {
+            ...availability,
+            medicineName: medicine.name,
+            medicineStrength: medicine.strength,
+            updated: availability.updatedAt
+              ? formatUpdatedTime(availability.updatedAt)
+              : 'Recently',
+            ageInHours: getAgeInHours(availability.updatedAt),
+          },
+        }
+      })
+      .filter(Boolean),
+  }
+}
+
+function getAgeInHours(updatedAt) {
+  if (!updatedAt) return 0
+
+  const updatedTime = new Date(updatedAt).getTime()
+
+  if (Number.isNaN(updatedTime)) return 0
+
+  return Math.max(0, (Date.now() - updatedTime) / (1000 * 60 * 60))
+}
+
+function formatUpdatedTime(updatedAt) {
+  if (!updatedAt) return 'Recently'
+
+  const updatedTime = new Date(updatedAt).getTime()
+
+  if (Number.isNaN(updatedTime)) return 'Recently'
+
+  const ageInHours = getAgeInHours(updatedAt)
+
+  if (ageInHours < 1) {
+    const minutes = Math.max(1, Math.round(ageInHours * 60))
+    return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
+  }
+
+  if (ageInHours < 24) {
+    const hours = Math.round(ageInHours)
+    return `${hours} hour${hours === 1 ? '' : 's'} ago`
+  }
+
+  const days = Math.round(ageInHours / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
+}
+
+async function getPharmacies() {
+  const response = await api.get('/pharmacies')
+  return response.data
+}
+
+async function getMedicineResults() {
+  const [medicineResponse, pharmacyResponse] = await Promise.all([
+    api.get('/medicines'),
+    getPharmacies(),
+  ])
+
+  return medicineResponse.data.map((item) =>
+    mapMedicineResult(item, pharmacyResponse),
+  )
+}
+
+export async function searchMedicines(query = '') {
+  const [medicineResponse, pharmacyResponse] = await Promise.all([
+    api.get('/medicines', {
+      params: query.trim() ? { query: query.trim() } : {},
+    }),
+    getPharmacies(),
+  ])
+
+  return medicineResponse.data.map((item) =>
+    mapMedicineResult(item, pharmacyResponse),
+  )
+}
+
+export async function getMedicineById(id) {
+  const results = await getMedicineResults()
+  return results.find((medicine) => medicine.id === id) || null
 }

@@ -18,30 +18,6 @@ public class UserSeedConfig {
     ) {
         return args -> {
 
-            if (!users.existsByEmailIgnoreCase("afya.staff@medifind.tz")) {
-                users.save(new User(
-                    "staff-afya-001",
-                    "Afya Pharmacy Staff",
-                    "afya.staff@medifind.tz",
-                    "",
-                    passwordEncoder.encode("Staff123!"),
-                    UserRole.PHARMACY_STAFF,
-                    "afya-pharmacy"
-                ));
-            }
-
-            if (!users.existsByEmailIgnoreCase("zanzibar.staff@medifind.tz")) {
-                users.save(new User(
-                    "staff-zanzibar-001",
-                    "Zanzibar Care Pharmacy Staff",
-                    "zanzibar.staff@medifind.tz",
-                    "",
-                    passwordEncoder.encode("Staff123!"),
-                    UserRole.PHARMACY_STAFF,
-                    "zanzibar-care-pharmacy"
-                ));
-            }
-
             if (!users.existsByEmailIgnoreCase("admin@medifind.tz")) {
                 users.save(new User(
                     "admin-001",
@@ -53,6 +29,18 @@ public class UserSeedConfig {
                     null
                 ));
             }
+
+            deactivateLegacyStaff(users, "staff-afya-001", "afya.staff@medifind.tz");
+            deactivateLegacyStaff(users, "staff-zanzibar-001", "zanzibar.staff@medifind.tz");
         };
+    }
+
+    private void deactivateLegacyStaff(UserRepository users, String id, String email) {
+        users.findById(id)
+            .filter(user -> user.getEmail().equalsIgnoreCase(email) && user.isActive())
+            .ifPresent(user -> {
+                user.setActive(false);
+                users.save(user);
+            });
     }
 }

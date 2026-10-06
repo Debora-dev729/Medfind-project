@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import tz.medifind.model.InventoryItem;
 import tz.medifind.repository.InventoryRepository;
@@ -33,6 +34,7 @@ public class InventoryController {
     }
 
     @PutMapping("/{medicineId}")
+    @Transactional
     public ResponseEntity<InventoryItem> update(
         @PathVariable String pharmacyId,
         @PathVariable String medicineId,
@@ -42,7 +44,7 @@ public class InventoryController {
         PharmacyAccess.requireAccess(authentication, pharmacyId);
 
         InventoryItem item =
-            inventory.findByPharmacyIdAndMedicineId(
+            inventory.findForUpdate(
                 pharmacyId,
                 medicineId
             ).orElseGet(() ->
@@ -62,7 +64,7 @@ public class InventoryController {
 
     public record InventoryUpdate(
         @Min(0) int quantity,
-        Integer price
+        @Min(0) Integer price
     ) {
     }
 }

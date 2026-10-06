@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-function SearchBar({ initialQuery = '', compact = false }) {
+function SearchBar({ initialQuery = '', compact = false, placeholder = 'Search medicine e.g. Paracetamol 500mg', buttonLabel = 'Search' }) {
   const [query, setQuery] = useState(initialQuery)
   const navigate = useNavigate()
 
@@ -19,8 +19,8 @@ function SearchBar({ initialQuery = '', compact = false }) {
     <form className={`search-form ${compact ? 'search-form-compact' : ''}`} onSubmit={handleSubmit} role="search">
       <label className="sr-only" htmlFor="medicine-search">Search for a medicine</label>
       <span className="search-icon" aria-hidden="true">⌕</span>
-      <input id="medicine-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search medicine e.g. Paracetamol 500mg" autoComplete="off" />
-      <button className="button button-primary" type="submit">Search <span aria-hidden="true">→</span></button>
+      <input id="medicine-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={placeholder} autoComplete="off" />
+      <button className="button button-primary" type="submit">{buttonLabel} <span aria-hidden="true">→</span></button>
     </form>
   )
 }

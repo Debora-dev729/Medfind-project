@@ -1,43 +1,63 @@
-const RESERVATIONS_KEY = 'medifind_reservations'
+import api from './api'
 
-const readReservations = () => {
-	try {
-		const value = localStorage.getItem(RESERVATIONS_KEY)
-		const reservations = value ? JSON.parse(value) : []
-		return Array.isArray(reservations) ? reservations : []
-	} catch {
-		return []
-	}
+const getErrorMessage = (error) => {
+  const status = error.response?.status
+  const backendMessage = error.response?.data?.message
+
+  if (status === 401) return 'Your session has expired. Please log in again.'
+  if (status === 403) return 'You do not have permission to perform this action.'
+  if (status === 404) return 'The requested reservation, medicine or pharmacy was not found.'
+  if (status === 409) return backendMessage || 'Reservation conflict. The pharmacy may be closed or you already have an active reservation.'
+  if (backendMessage) return backendMessage
+
+  return 'Something went wrong. Please try again.'
 }
-
-const writeReservations = (reservations) => localStorage.setItem(RESERVATIONS_KEY, JSON.stringify(reservations))
-const createReservationId = () => globalThis.crypto?.randomUUID?.() || `reservation-${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 export const createReservation = async (reservation) => {
-	const reservations = readReservations()
-	const existing = reservations.find((item) => item.patientId === reservation.patientId
-		&& item.medicineId === reservation.medicineId
-		&& item.pharmacyId === reservation.pharmacyId
-		&& !['CANCELLED', 'COLLECTED'].includes(item.status))
-	if (existing) throw new Error('You already have an active reservation for this medicine at this pharmacy.')
-
-	const savedReservation = {
-		...reservation,
-		id: createReservationId(),
-		status: 'PENDING',
-		createdAt: new Date().toISOString(),
-	}
-	writeReservations([savedReservation, ...reservations])
-	return savedReservation
+  try {
+    const response = await api.post('/reservations', {
+      pharmacyId: reservation.pharmacyId,
+      medicineId: reservation.medicineId,
+      quantity: reservation.quantity,
+    })
+    return response.data
+  } catch (error) {
+    throw new Error(getErrorMessage(error), { cause: error })
+  }
 }
 
-export const getMyReservations = async (patientId) => readReservations().filter((reservation) => reservation.patientId === patientId)
+export const getMyReservations = async (patientId) => {
+  try {
+    const response = await api.get(`/reservations/patient/${patientId}`)
+    return response.data
+  } catch (error) {
+    throw new Error(getErrorMessage(error), { cause: error })
+  }
+}
 
-export const getPharmacyReservations = async (pharmacyId) => readReservations().filter((reservation) => reservation.pharmacyId === pharmacyId)
+export const getPharmacyReservations = async (pharmacyId) => {
+  try {
+    const response = await api.get(`/reservations/pharmacy/${pharmacyId}`)
+    return response.data
+  } catch (error) {
+    throw new Error(getErrorMessage(error), { cause: error })
+  }
+}
 
 export const updateReservationStatus = async (reservationId, status) => {
-	const reservations = readReservations()
-	const updatedReservations = reservations.map((reservation) => reservation.id === reservationId ? { ...reservation, status, updatedAt: new Date().toISOString() } : reservation)
-	writeReservations(updatedReservations)
-	return updatedReservations.find((reservation) => reservation.id === reservationId)
+  try {
+    const response = await api.patch(`/reservations/${reservationId}/status`, { status })
+    return response.data
+  } catch (error) {
+    throw new Error(getErrorMessage(error), { cause: error })
+  }
+}
+
+export const cancelReservation = async (reservationId) => {
+  try {
+    const response = await api.patch(`/reservations/${reservationId}/cancel`)
+    return response.data
+  } catch (error) {
+    throw new Error(getErrorMessage(error), { cause: error })
+  }
 }

@@ -41,7 +41,7 @@ function Login() {
         <div className="auth-trust"><span>✓</span><div><strong>Trusted by patients across Tanzania</strong><small>Simple, transparent medicine access.</small></div></div>
       </div>
       <div className="auth-panel auth-form-panel">
-        <p className="eyebrow">Patient account</p>
+        <p className="eyebrow">MediFind account</p>
         <h2>Log in to MediFind</h2>
         <p className="auth-subtitle">Enter your details to continue.</p>
         {location.state?.registered && <div className="auth-message" role="status">Account created. Log in to open your MediFind workspace.</div>}
@@ -52,7 +52,7 @@ function Login() {
           <div className="auth-options"><label className="checkbox-label"><input type="checkbox" name="remember" checked={form.remember} onChange={handleChange} /> Remember me</label><a href="#forgot-password">Forgot password?</a></div>
           <button className="button button-primary" type="submit">Log in <span aria-hidden="true">→</span></button>
         </form>
-        <p className="auth-switch">New to MediFind? <Link to="/register">Create an account</Link></p>
+        <p className="auth-switch">New to MediFind? <Link to="/register" state={{ from: location.state?.from }}>Register as a patient</Link></p>
       </div>
     </section>
   )

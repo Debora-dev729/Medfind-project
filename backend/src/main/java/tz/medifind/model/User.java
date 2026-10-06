@@ -26,6 +26,9 @@ public class User {
 
     private String pharmacyId;
 
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean active = true;
+
     protected User() {
     }
 
@@ -73,6 +76,28 @@ public class User {
 
     public String getPharmacyId() {
         return pharmacyId;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void updateStaffDetails(
+        String fullName,
+        String email,
+        String phone,
+        String password,
+        String pharmacyId
+    ) {
+        this.fullName = fullName;
+        this.email = email;
+        this.phone = phone;
+        if (password != null) this.password = password;
+        this.pharmacyId = pharmacyId;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }
 

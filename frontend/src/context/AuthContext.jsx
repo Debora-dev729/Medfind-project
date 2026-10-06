@@ -1,10 +1,26 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { getCurrentUser, loginUser, logoutUser, registerUser } from '../services/authService'
+import { getCurrentUser, loginUser, logoutUser, registerUser, validateSession } from '../services/authService'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => getCurrentUser())
+
+  useEffect(() => {
+    let cancelled = false
+
+    const checkSession = async () => {
+      const validUser = await validateSession()
+      if (!cancelled) setUser(validUser)
+    }
+
+    // Only validate when there is a saved session; guests go straight to login.
+    if (getCurrentUser()) checkSession()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const handleStorage = (event) => {
@@ -14,7 +30,11 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('storage', handleStorage)
   }, [])
 
-  const register = async (details) => registerUser(details)
+  const register = async (details) => {
+    const registeredUser = await registerUser(details)
+    setUser(registeredUser)
+    return registeredUser
+  }
 
   const login = async (credentials) => {
     const authenticatedUser = await loginUser(credentials)

@@ -1,43 +1,13 @@
-import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import StatusBadge from './StatusBadge'
 import { useAuth } from '../context/AuthContext'
-import { createReservation } from '../services/reservationService'
+import ReservationForm from './ReservationForm'
 
 function PharmacyCard({ pharmacy, availability, medicineId }) {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [message, setMessage] = useState('')
-  const [saving, setSaving] = useState(false)
   const isStale = availability.ageInHours >= 24
-  const handleReserve = async () => {
-    if (!user) {
-      navigate('/login')
-      return
-    }
-    if (user.role !== 'PATIENT') {
-      setMessage('Only patient accounts can reserve medicine.')
-      return
-    }
-    setSaving(true)
-    setMessage('')
-    try {
-      await createReservation({
-        patientId: user.id,
-        patientName: user.fullName,
-        medicineId,
-        pharmacyId: pharmacy.id,
-        pharmacyName: pharmacy.name,
-        medicineName: availability.medicineName,
-        price: availability.price,
-      })
-      setMessage('Reserved. The pharmacy will confirm your request.')
-    } catch (error) {
-      setMessage(error.message)
-    } finally {
-      setSaving(false)
-    }
-  }
+  const medicine = { id: medicineId, name: availability.medicineName || 'Medicine', strength: availability.medicineStrength }
 
   return (
     <article className="pharmacy-card">
@@ -50,6 +20,7 @@ function PharmacyCard({ pharmacy, availability, medicineId }) {
         <span className="distance">{pharmacy.distance} km</span>
       </div>
       <div className="pharmacy-location"><span aria-hidden="true">⌖</span>{pharmacy.address}, {pharmacy.city}</div>
+      {pharmacy.phone && <div className="pharmacy-location"><span aria-hidden="true">☎</span><a href={`tel:${pharmacy.phone}`}>{pharmacy.phone}</a></div>}
       <div className="pharmacy-status-row">
         <StatusBadge status={availability.status} />
         <strong>{availability.price ? `TSh ${availability.price.toLocaleString()}` : 'Price unavailable'}</strong>
@@ -58,9 +29,8 @@ function PharmacyCard({ pharmacy, availability, medicineId }) {
       {availability.status !== 'OUT_OF_STOCK' && <div className="stock-note">{availability.quantity ?? 'Limited'} units currently listed</div>}
       <div className="card-actions">
         <Link className="button button-secondary" to={`/pharmacies/${pharmacy.id}`}>View pharmacy</Link>
-        <button className="button button-primary" type="button" onClick={handleReserve} disabled={availability.status === 'OUT_OF_STOCK' || saving}>{saving ? 'Reserving...' : 'Reserve'}</button>
+        {user?.role === 'PATIENT' ? <ReservationForm pharmacy={pharmacy} medicine={medicine} availability={availability} patient={user} /> : <button className="button button-primary" type="button" onClick={() => navigate('/login', { state: { from: `/search?query=${encodeURIComponent(medicine.name)}` } })} disabled={availability.status === 'OUT_OF_STOCK'}>Place Order</button>}
       </div>
-      {message && <p className="reservation-message" role="status">{message}</p>}
       {medicineId && <span className="sr-only">Medicine ID: {medicineId}</span>}
     </article>
   )

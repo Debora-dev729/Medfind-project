@@ -92,3 +92,49 @@ h1, h2, h3 { font-family: 'Manrope', sans-serif; }
 @media (max-width: 500px) { .medicine-directory { grid-template-columns: 1fr; } }
 .hero-section { background-image: url('https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=1800&q=85'); background-position: center; background-size: cover; }
 .hero-slide { background-image: none !important; }
+.reservation-status-note { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--green-dark, #17614a); }
+
+/* ===== stats band ===== */
+.stats-section { padding: 56px 0; border-bottom: 1px solid var(--line); background: white; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; text-align: center; }
+.stat { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-right: 1px solid var(--line); }
+.stat:last-child { border-right: 0; }
+.stat strong { font: 800 34px/1.1 'Manrope', sans-serif; letter-spacing: -1.5px; color: var(--green); }
+.stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
+
+/* ===== testimonials ===== */
+.testimonials-section { padding: 100px 0; background: var(--cream); }
+.section-heading-center { margin: 0 auto 50px; text-align: center; }
+.section-heading-center .eyebrow { justify-content: center; }
+.section-heading-center > p:last-child { max-width: 430px; margin: 0 auto; }
+.testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.testimonial-card { display: flex; flex-direction: column; margin: 0; padding: 26px; border: 1px solid var(--line); border-radius: 14px; background: white; box-shadow: 0 8px 20px rgba(19, 72, 58, .04); transition: transform .25s ease, box-shadow .25s ease; }
+.testimonial-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.testimonial-stars { margin-bottom: 14px; color: #f5b301; font-size: 14px; letter-spacing: 2px; }
+.testimonial-card blockquote { flex: 1; margin: 0 0 22px; color: var(--ink); font-size: 14px; line-height: 1.65; }
+.testimonial-card figcaption { display: flex; align-items: center; gap: 11px; padding-top: 18px; border-top: 1px solid var(--line); }
+.testimonial-avatar { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; color: white; background: var(--green); font: 700 14px 'Manrope', sans-serif; }
+.testimonial-card figcaption strong { display: block; font-size: 13px; }
+.testimonial-card figcaption small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+
+/* ===== closing CTA ===== */
+.cta-section { position: relative; overflow: hidden; padding: 78px 0; color: white; background: #103d34; }
+.cta-section::before { position: absolute; content: ''; width: 380px; height: 380px; right: -140px; bottom: -220px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 50%; }
+.cta-section::after { position: absolute; content: ''; width: 260px; height: 260px; left: -110px; top: -130px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 50%; }
+.cta-inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 40px; }
+.cta-copy h2 { margin: 0 0 12px; font-size: clamp(28px, 3.2vw, 38px); letter-spacing: -1.4px; }
+.cta-copy p { max-width: 470px; margin: 0; color: #a9c9bb; font-size: 15px; line-height: 1.6; }
+.cta-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; gap: 12px; }
+.cta-button-primary { color: #103d34; background: #a8e4c9; }
+.cta-button-primary:hover:not(:disabled) { background: #bdeed6; }
+.cta-button-ghost { border: 1px solid rgba(255, 255, 255, .3); color: white; background: transparent; }
+.cta-button-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.cta-button-ghost span { color: #a8e4c9; }
+
+@media (max-width: 820px) {
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { border-right: 0; }
+  .testimonials-grid { grid-template-columns: 1fr; }
+  .testimonials-section { padding: 70px 0; }
+  .cta-inner { align-items: flex-start; flex-direction: column; }
+}

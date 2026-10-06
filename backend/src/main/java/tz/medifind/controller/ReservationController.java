@@ -3,19 +3,27 @@ package tz.medifind.controller;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import tz.medifind.model.Pharmacy;
+import tz.medifind.model.InventoryItem;
+import tz.medifind.model.AvailabilityStatus;
 import tz.medifind.model.Reservation;
 import tz.medifind.model.ReservationStatus;
+import tz.medifind.model.User;
+import tz.medifind.repository.InventoryRepository;
+import tz.medifind.repository.MedicineRepository;
 import tz.medifind.repository.PharmacyRepository;
 import tz.medifind.repository.ReservationRepository;
+import tz.medifind.repository.UserRepository;
 import tz.medifind.security.PharmacyAccess;
+import tz.medifind.service.ReservationLifecycleService;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,23 +33,41 @@ public class ReservationController {
 
     private final ReservationRepository reservations;
     private final PharmacyRepository pharmacies;
+    private final InventoryRepository inventory;
+    private final UserRepository users;
+    private final ReservationLifecycleService lifecycle;
+    private final MedicineRepository medicines;
 
     public ReservationController(
         ReservationRepository reservations,
-        PharmacyRepository pharmacies
+        PharmacyRepository pharmacies,
+        InventoryRepository inventory,
+        UserRepository users,
+        ReservationLifecycleService lifecycle,
+        MedicineRepository medicines
     ) {
         this.reservations = reservations;
         this.pharmacies = pharmacies;
+        this.inventory = inventory;
+        this.users = users;
+        this.lifecycle = lifecycle;
+        this.medicines = medicines;
     }
 
     @PostMapping
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public Reservation create(
         @Valid @RequestBody CreateReservation request,
         Authentication authentication
     ) {
-        requirePatient(authentication);
-
-        String patientId = authentication.getName();
+        User patient = requirePatient(authentication);
+        patient = users.findForUpdate(patient.getId())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Patient account not found."
+            ));
+        String patientId = patient.getId();
+        expireOverdueReservations(patientId);
 
         Pharmacy pharmacy = pharmacies.findById(request.pharmacyId())
             .orElseThrow(() -> new ResponseStatusException(
@@ -49,14 +75,36 @@ public class ReservationController {
                 "Pharmacy not found."
             ));
 
-        if (!pharmacy.isOpen) {
+        if (!pharmacy.isOperational() || !pharmacy.isOpen) {
             throw new ResponseStatusException(
                 HttpStatus.CONFLICT,
-                "This pharmacy is temporarily closed."
+                "This pharmacy is not currently accepting orders."
             );
         }
 
-        expireOverdueReservations(patientId);
+        medicines.findById(request.medicineId())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "This medicine is no longer available."
+            ));
+
+        InventoryItem stock = inventory.findForUpdate(
+                request.pharmacyId(),
+                request.medicineId()
+            )
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "This medicine is not listed by the selected pharmacy."
+            ));
+        if (stock.status == AvailabilityStatus.OUT_OF_STOCK ||
+            stock.quantity < request.quantity()) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                stock.quantity == 0
+                    ? "This medicine is out of stock."
+                    : "The requested quantity is no longer available."
+            );
+        }
 
         boolean active =
             reservations
@@ -78,19 +126,22 @@ public class ReservationController {
             );
         }
 
-        return reservations.save(
-            new Reservation(
+        Reservation reservation = new Reservation(
                 UUID.randomUUID().toString(),
                 patientId,
-                request.patientName(),
+                patient.getFullName(),
                 request.pharmacyId(),
                 request.medicineId(),
-                request.price()
-            )
-        );
+                stock.price,
+                request.quantity()
+            );
+        stock.update(stock.quantity - request.quantity(), stock.price);
+        inventory.save(stock);
+        return reservations.save(reservation);
     }
 
     @GetMapping("/patient/{patientId}")
+    @Transactional
     public List<Reservation> patientReservations(
         @PathVariable String patientId,
         Authentication authentication
@@ -107,7 +158,7 @@ public class ReservationController {
         }
 
         List<Reservation> result =
-            reservations.findByPatientIdOrderByCreatedAtDesc(patientId);
+            reservations.findPatientReservationsForUpdate(patientId);
 
         expireOverdueReservations(result);
 
@@ -115,6 +166,7 @@ public class ReservationController {
     }
 
     @GetMapping("/pharmacy/{pharmacyId}")
+    @Transactional
     public List<Reservation> pharmacyReservations(
         @PathVariable String pharmacyId,
         Authentication authentication
@@ -122,14 +174,53 @@ public class ReservationController {
         PharmacyAccess.requireAccess(authentication, pharmacyId);
 
         List<Reservation> result =
-            reservations.findByPharmacyIdOrderByCreatedAtDesc(pharmacyId);
+            reservations.findPharmacyReservationsForUpdate(pharmacyId);
 
         expireOverdueReservations(result);
 
         return result;
     }
 
+    @PatchMapping("/{id}/cancel")
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public Reservation cancelByPatient(
+        @PathVariable String id,
+        Authentication authentication
+    ) {
+        User patient = requirePatient(authentication);
+        Reservation reservation = reservations.findForUpdate(id)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,
+                "Order not found."
+            ));
+
+        if (!reservation.patientId.equals(patient.getId())) {
+            throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "You can only cancel your own orders."
+            );
+        }
+
+        if (lifecycle.expireIfOverdue(reservation)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "This order expired because the pharmacy did not confirm it within 15 minutes."
+            );
+        }
+        if (reservation.status != ReservationStatus.PENDING) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Only pending orders can be cancelled."
+            );
+        }
+
+        lifecycle.releaseReservedStock(reservation);
+        reservation.changeStatus(ReservationStatus.CANCELLED);
+        return reservations.save(reservation);
+    }
+
     @PatchMapping("/{id}/status")
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public Reservation updateStatus(
         @PathVariable String id,
         @Valid @RequestBody StatusUpdate request,
@@ -137,7 +228,7 @@ public class ReservationController {
     ) {
         requireStaffOrAdmin(authentication);
 
-        Reservation reservation = reservations.findById(id)
+        Reservation reservation = reservations.findForUpdate(id)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "Reservation not found."
@@ -148,7 +239,14 @@ public class ReservationController {
             reservation.pharmacyId
         );
 
-        expireIfOverdue(reservation);
+        boolean confirming = request.status() == ReservationStatus.CONFIRMED;
+        if (confirming && lifecycle.expireIfOverdue(reservation)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "This order has expired and can no longer be confirmed."
+            );
+        }
+        if (!confirming) expireIfOverdue(reservation);
 
         if (reservation.status == ReservationStatus.EXPIRED) {
             throw new ResponseStatusException(
@@ -162,12 +260,37 @@ public class ReservationController {
             request.status()
         );
 
+        if (confirming) {
+            medicines.findById(reservation.medicineId)
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The medicine for this order is no longer available."
+                ));
+            InventoryItem reservedInventory = inventory.findForUpdate(
+                    reservation.pharmacyId,
+                    reservation.medicineId
+                )
+                .orElseThrow(() -> new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The reserved inventory for this order no longer exists."
+                ));
+            if (reservation.quantity < 1 || reservedInventory.quantity < 0) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "The reserved inventory for this order is invalid."
+                );
+            }
+        }
+
+        if (request.status() == ReservationStatus.CANCELLED) {
+            lifecycle.releaseReservedStock(reservation);
+        }
         reservation.changeStatus(request.status());
 
         return reservations.save(reservation);
     }
 
-    private void requirePatient(Authentication authentication) {
+    private User requirePatient(Authentication authentication) {
         if (authentication == null ||
             !authentication.isAuthenticated()) {
 
@@ -190,6 +313,12 @@ public class ReservationController {
                 "Only patient accounts can perform this action."
             );
         }
+
+        return users.findById(authentication.getName())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Patient account not found."
+            ));
     }
 
     private void requireStaffOrAdmin(Authentication authentication) {
@@ -222,31 +351,17 @@ public class ReservationController {
 
     private void expireOverdueReservations(String patientId) {
         List<Reservation> reservationsForPatient =
-            reservations.findByPatientIdOrderByCreatedAtDesc(patientId);
+            reservations.findPatientReservationsForUpdate(patientId);
 
         expireOverdueReservations(reservationsForPatient);
     }
 
     private void expireOverdueReservations(List<Reservation> reservationList) {
-        boolean changed = false;
-
-        for (Reservation reservation : reservationList) {
-            if (reservation.isConfirmationExpired()) {
-                reservation.expire();
-                changed = true;
-            }
-        }
-
-        if (changed) {
-            reservations.saveAll(reservationList);
-        }
+        lifecycle.expireOverdue(reservationList);
     }
 
     private void expireIfOverdue(Reservation reservation) {
-        if (reservation.isConfirmationExpired()) {
-            reservation.expire();
-            reservations.save(reservation);
-        }
+        lifecycle.expireIfOverdue(reservation);
     }
 
     private void validateStatusTransition(
@@ -278,14 +393,13 @@ public class ReservationController {
     }
 
     public record CreateReservation(
-        @NotBlank String patientId,
-        @NotBlank String patientName,
         @NotBlank String pharmacyId,
         @NotBlank String medicineId,
-        @Min(0) Integer price
+        @Min(1) int quantity
     ) {}
 
     public record StatusUpdate(
+        @NotNull
         ReservationStatus status
     ) {}
 }

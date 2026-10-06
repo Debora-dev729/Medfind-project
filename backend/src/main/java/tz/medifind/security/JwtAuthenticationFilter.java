@@ -10,6 +10,11 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import tz.medifind.model.User;
+import tz.medifind.repository.UserRepository;
+import tz.medifind.model.Pharmacy;
+import tz.medifind.model.UserRole;
+import tz.medifind.repository.PharmacyRepository;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,9 +23,17 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository users;
+    private final PharmacyRepository pharmacies;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(
+        JwtService jwtService,
+        UserRepository users,
+        PharmacyRepository pharmacies
+    ) {
         this.jwtService = jwtService;
+        this.users = users;
+        this.pharmacies = pharmacies;
     }
 
     @Override
@@ -45,11 +58,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Claims claims = jwtService.extractClaims(token);
 
             String userId = claims.getSubject();
-            String role = claims.get("role", String.class);
-            String pharmacyId = claims.get("pharmacyId", String.class);
+            User user = users.findById(userId).orElseThrow();
+            if (!user.isActive()) throw new IllegalArgumentException("Inactive account.");
+            if (user.getRole() == UserRole.PHARMACY_STAFF) {
+                Pharmacy pharmacy = pharmacies.findById(user.getPharmacyId()).orElseThrow();
+                if (!pharmacy.isOperational()) {
+                    throw new IllegalArgumentException("Assigned pharmacy is not active.");
+                }
+            }
 
             var authorities = List.of(
-                new SimpleGrantedAuthority("ROLE_" + role)
+                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
             );
 
             var authentication = new UsernamePasswordAuthenticationToken(
@@ -58,7 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authorities
             );
 
-            authentication.setDetails(pharmacyId);
+            authentication.setDetails(user.getPharmacyId());
 
             SecurityContextHolder.getContext()
                 .setAuthentication(authentication);

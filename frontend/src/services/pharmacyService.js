@@ -1,29 +1,22 @@
-import { mockPharmacies } from '../data/mockPharmacies'
-import { mockMedicines } from '../data/mockMedicines'
-import { getInventoryOverrides } from './inventoryService'
+import api from './api'
 
 export const getPharmacyById = async (id) => {
-  const pharmacy = mockPharmacies.find((item) => item.id === id)
-  if (!pharmacy) return null
-  const overrides = getInventoryOverrides(id)
-  const medicines = Object.fromEntries(Object.entries(pharmacy.medicines).map(([medicineId, availability]) => [
-    medicineId,
-    { ...availability, ...(overrides[medicineId] || {}) },
-  ]))
+  const [pharmacyResponse, medicineResponse] = await Promise.all([
+    api.get(`/pharmacies/${id}`),
+    api.get('/medicines'),
+  ])
+  const medicineById = new Map(
+    medicineResponse.data.map(({ medicine }) => [medicine.id, medicine]),
+  )
+  const { pharmacy, inventory } = pharmacyResponse.data
 
   return {
     ...pharmacy,
-    medicines: Object.entries(medicines).map(([medicineId, availability]) => ({
-      medicine: mockMedicines.find((item) => item.id === medicineId),
-      availability,
-    })),
+    medicines: inventory
+      .filter((item) => item.quantity > 0 && item.status !== 'OUT_OF_STOCK')
+      .map((item) => ({
+        medicine: medicineById.get(item.medicineId) || { id: item.medicineId, name: item.medicineId },
+        availability: item,
+      })),
   }
 }
-
-export const getNearbyPharmacies = async () => mockPharmacies.map((pharmacy) => ({
-  ...pharmacy,
-  medicines: Object.fromEntries(Object.entries(pharmacy.medicines).map(([medicineId, availability]) => [
-    medicineId,
-    { ...availability, ...(getInventoryOverrides(pharmacy.id)[medicineId] || {}) },
-  ])),
-}))

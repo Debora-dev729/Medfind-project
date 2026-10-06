@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import tz.medifind.model.User;
 import tz.medifind.model.UserRole;
 import tz.medifind.repository.UserRepository;
+import tz.medifind.repository.PharmacyRepository;
 import tz.medifind.security.JwtService;
 
 import java.util.Map;
@@ -24,15 +25,18 @@ public class AuthController {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final PharmacyRepository pharmacies;
 
     public AuthController(
         UserRepository users,
         PasswordEncoder passwordEncoder,
-        JwtService jwtService
+        JwtService jwtService,
+        PharmacyRepository pharmacies
     ) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.pharmacies = pharmacies;
     }
 
     @PostMapping("/login")
@@ -44,7 +48,13 @@ public class AuthController {
                 "Invalid email or password."
             ));
 
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+        boolean pharmacyActive = user.getRole() != UserRole.PHARMACY_STAFF ||
+            pharmacies.findById(user.getPharmacyId())
+                .map(pharmacy -> pharmacy.isOperational())
+                .orElse(false);
+
+        if (!user.isActive() || !pharmacyActive ||
+            !passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new ResponseStatusException(
                 HttpStatus.UNAUTHORIZED,
                 "Invalid email or password."
@@ -72,44 +82,21 @@ public class AuthController {
             );
         }
 
-        UserRole role;
-
-        try {
-            role = UserRole.valueOf(request.role().trim().toUpperCase());
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Choose a valid account type."
-            );
-        }
-
-        if (role == UserRole.ADMIN) {
-            throw new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Admin accounts cannot be created through registration."
-            );
-        }
-
-        String pharmacyId = null;
-
-        if (role == UserRole.PHARMACY_STAFF) {
-            pharmacyId = "afya-pharmacy";
-        }
-
         User user = new User(
             UUID.randomUUID().toString(),
             request.fullName().trim(),
             email,
             request.phone().trim(),
             passwordEncoder.encode(request.password()),
-            role,
-            pharmacyId
+            UserRole.PATIENT,
+            null
         );
 
         users.save(user);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
             Map.of(
+                "token", jwtService.generateToken(user),
                 "user", userResponse(user)
             )
         );
@@ -139,8 +126,8 @@ public class AuthController {
         @NotBlank String password,
         @NotBlank
         @Pattern(
-            regexp = "PATIENT|PHARMACY_STAFF",
-            message = "Choose a valid account type."
+            regexp = "PATIENT",
+            message = "Public registration is for patients only."
         )
         String role
     ) {

@@ -5,7 +5,7 @@ function ProtectedRoute({ roles }) {
   const { user } = useAuth()
   const location = useLocation()
 
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  if (!user) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
   if (roles && !roles.includes(user.role)) return <Navigate to={getDashboardPath(user.role)} replace />
   return <Outlet />
 }

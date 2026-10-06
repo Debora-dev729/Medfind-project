@@ -1,78 +1,127 @@
-const USERS_KEY = 'medifind_users'
-const SESSION_KEY = 'medifind_current_user'
+import api from './api'
 
-const demoAdmin = {
-	id: 'demo-admin',
-	fullName: 'MediFind Administrator',
-	email: 'admin@medifind.tz',
-	phone: '+255 700 000 001',
-	password: 'Admin123!',
-	role: 'ADMIN',
-	createdAt: '2026-01-01T00:00:00.000Z',
+const SESSION_KEY = 'medifind_current_user'
+const TOKEN_KEY = 'medifind_access_token'
+const REMEMBER_KEY = 'medifind_remember'
+
+const getStorage = () => {
+  return localStorage.getItem(REMEMBER_KEY) === 'true'
+    ? localStorage
+    : sessionStorage
 }
 
 const readStorage = (key, fallback) => {
-	try {
-		const value = localStorage.getItem(key)
-		return value ? JSON.parse(value) : fallback
-	} catch {
-		return fallback
-	}
+  try {
+    const localValue = localStorage.getItem(key)
+    const sessionValue = sessionStorage.getItem(key)
+    const value = localValue ?? sessionValue
+
+    return value ? JSON.parse(value) : fallback
+  } catch {
+    return fallback
+  }
 }
 
-const readUsers = () => {
-	const storedUsers = readStorage(USERS_KEY, [])
-	const users = Array.isArray(storedUsers) ? storedUsers : []
-	if (users.some((user) => user.role === 'ADMIN')) return users
-	const seededUsers = [...users, demoAdmin]
-	writeUsers(seededUsers)
-	return seededUsers
-}
-const writeUsers = (users) => localStorage.setItem(USERS_KEY, JSON.stringify(users))
+const saveSession = (token, user, remember = false) => {
+  const storage = remember ? localStorage : sessionStorage
 
-const publicUser = ({ password, ...user }) => user
-const createUserId = () => globalThis.crypto?.randomUUID?.() || `user-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+
+  storage.setItem(TOKEN_KEY, token)
+  storage.setItem(SESSION_KEY, JSON.stringify(user))
+  localStorage.setItem(REMEMBER_KEY, String(remember))
+}
 
 export const registerUser = async (userDetails) => {
-	const users = readUsers()
-	const fullName = userDetails.fullName?.trim()
-	const normalizedEmail = userDetails.email?.trim().toLowerCase()
-	const phone = userDetails.phone?.trim()
-	const password = userDetails.password || ''
-	const role = userDetails.role
-	if (!fullName || !normalizedEmail || !phone || password.length < 8) {
-		throw new Error('Please complete all fields with a password of at least 8 characters.')
-	}
-	if (!['PATIENT', 'PHARMACY_STAFF'].includes(role)) {
-		throw new Error('Choose a valid account type.')
-	}
-	if (users.some((user) => user.email === normalizedEmail)) {
-		throw new Error('An account with this email already exists.')
-	}
+  try {
+    const response = await api.post('/auth/register', {
+      fullName: userDetails.fullName.trim(),
+      email: userDetails.email.trim().toLowerCase(),
+      phone: userDetails.phone.trim(),
+      password: userDetails.password,
+      role: 'PATIENT',
+    })
 
-	const user = {
-		id: createUserId(),
-		fullName,
-		email: normalizedEmail,
-		phone,
-		password,
-		role,
-		...(role === 'PHARMACY_STAFF' ? { pharmacyId: 'afya-pharmacy' } : {}),
-		createdAt: new Date().toISOString(),
-	}
-	writeUsers([...users, user])
-	return publicUser(user)
+    const { token, user } = response.data
+
+    saveSession(token, user, false)
+
+    return user
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Registration failed. Please try again.'
+
+    throw new Error(message)
+  }
 }
 
-export const loginUser = async ({ email, password }) => {
-	const user = readUsers().find((item) => item.email === email.trim().toLowerCase() && item.password === password)
-	if (!user) throw new Error('Email or password is incorrect.')
+export const loginUser = async ({ email, password, remember = false }) => {
+  try {
+    const response = await api.post('/auth/login', {
+      email: email.trim().toLowerCase(),
+      password,
+    })
 
-	const sessionUser = publicUser(user)
-	localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser))
-	return sessionUser
+    const { token, user } = response.data
+
+    saveSession(token, user, remember)
+
+    return user
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      'Email or password is incorrect.'
+
+    throw new Error(message)
+  }
 }
 
 export const getCurrentUser = () => readStorage(SESSION_KEY, null)
 
-export const logoutUser = () => localStorage.removeItem(SESSION_KEY)
+export const getAccessToken = () =>
+  localStorage.getItem(TOKEN_KEY) ||
+  sessionStorage.getItem(TOKEN_KEY)
+
+export const validateSession = async () => {
+  const token = getAccessToken()
+  const currentUser = getCurrentUser()
+
+  if (!token || !currentUser) {
+    logoutUser()
+    return null
+  }
+
+  try {
+    await api.get(
+      `/reservations/patient/${currentUser.id || currentUser.sub || 'session-check'}`
+    )
+
+    return currentUser
+  } catch (error) {
+    const status = error.response?.status
+
+    if (status === 401 || status === 403 || !status) {
+      if (status === 403) return currentUser
+
+      logoutUser()
+      return null
+    }
+
+    return currentUser
+  }
+}
+
+export const logoutUser = () => {
+  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REMEMBER_KEY)
+
+  sessionStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+}

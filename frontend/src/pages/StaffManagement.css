@@ -1,0 +1,30 @@
+.staff-admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 34px; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+.staff-admin-heading h1 { margin: 0 0 10px; font: 800 38px 'Manrope', sans-serif; }
+.staff-admin-heading p:last-child { margin: 0; color: var(--muted); }
+.staff-admin-count { color: var(--muted); font-size: 13px; }
+.staff-admin-layout { display: grid; grid-template-columns: minmax(260px, .7fr) minmax(0, 1.3fr); align-items: start; gap: 40px; }
+.staff-admin-form { display: grid; gap: 16px; padding: 23px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+.staff-admin-form h2,
+.staff-admin-list-heading h2 { margin: 0; font: 700 20px 'Manrope', sans-serif; }
+.staff-admin-form .eyebrow { margin-bottom: 8px; }
+.staff-admin-form label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+.staff-admin-form label span { color: var(--muted); font-weight: 400; }
+.staff-admin-form input,
+.staff-admin-form select { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: white; }
+.staff-admin-form-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.staff-admin-list { min-width: 0; }
+.staff-admin-list-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.staff-admin-list-heading > span { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; color: var(--green); background: #eaf7f1; font-size: 12px; font-weight: 700; }
+.staff-admin-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 18px; padding: 18px 0; border-top: 1px solid var(--line); }
+.staff-admin-member { display: grid; gap: 4px; min-width: 0; font-size: 12px; }
+.staff-admin-member strong { font-size: 14px; }
+.staff-admin-member span,
+.staff-admin-member small { overflow-wrap: anywhere; color: var(--muted); }
+.staff-admin-member small { color: var(--green); font-weight: 600; }
+.staff-admin-status { align-self: start; padding: 5px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+.staff-admin-status.is-active { color: #087457; background: #e3f6eb; }
+.staff-admin-status.is-inactive { color: #845e18; background: #f8edcf; }
+.staff-admin-actions { display: flex; flex-wrap: wrap; gap: 7px; grid-column: 1 / -1; }
+.staff-admin-actions .button { min-height: 36px; padding: 0 11px; font-size: 11px; }
+@media (max-width: 860px) { .staff-admin-layout { grid-template-columns: 1fr; gap: 32px; } }
+@media (max-width: 520px) { .staff-admin-heading { align-items: start; flex-direction: column; } .staff-admin-heading h1 { font-size: 32px; } .staff-admin-form { padding: 17px; } }

@@ -51,4 +51,16 @@ public final class PharmacyAccess {
             );
         }
     }
+
+    public static void requireReadAccess(
+        Authentication authentication,
+        String pharmacyId
+    ) {
+        boolean patient = authentication != null &&
+            authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.equals(
+                    new SimpleGrantedAuthority("ROLE_PATIENT")));
+
+        if (!patient) requireAccess(authentication, pharmacyId);
+    }
 }

@@ -21,9 +21,11 @@ function Navbar() {
         </button>
         <nav className={`nav-links ${menuOpen ? 'is-open' : ''}`} aria-label="Main navigation">
           <NavLink to="/" end onClick={() => setMenuOpen(false)}>Home</NavLink>
-          <NavLink to="/search" onClick={() => setMenuOpen(false)}>Search Medicine</NavLink>
-          <a href="#about" onClick={() => setMenuOpen(false)}>About</a>
-          {user ? <><Link className="nav-login" to={getDashboardPath(user.role)} onClick={() => setMenuOpen(false)}>{user.fullName.split(' ')[0]}'s space</Link><button className="nav-register nav-logout" type="button" onClick={() => { logout(); setMenuOpen(false) }}>Log out</button></> : <><Link className="nav-login" to="/login" onClick={() => setMenuOpen(false)}>Log in</Link><Link className="nav-register" to="/register" onClick={() => setMenuOpen(false)}>Create account</Link></>}
+          {!user && <><NavLink to="/search" onClick={() => setMenuOpen(false)}>Find Medicine</NavLink><Link to="/#about" onClick={() => setMenuOpen(false)}>About</Link><Link className="nav-login" to="/login" onClick={() => setMenuOpen(false)}>Log in</Link><Link className="nav-register" to="/register" onClick={() => setMenuOpen(false)}>Register as Patient</Link></>}
+          {user?.role === 'PATIENT' && <><NavLink to="/search" onClick={() => setMenuOpen(false)}>Find Medicine</NavLink><Link to="/patient/dashboard" onClick={() => setMenuOpen(false)}>My dashboard</Link></>}
+          {user?.role === 'ADMIN' && <><NavLink to="/admin" onClick={() => setMenuOpen(false)}>Dashboard</NavLink><NavLink to="/admin/pharmacies" onClick={() => setMenuOpen(false)}>Pharmacies</NavLink><NavLink to="/admin/pharmacy-staff" onClick={() => setMenuOpen(false)}>Pharmacy Staff</NavLink><NavLink to="/admin/payments" onClick={() => setMenuOpen(false)}>Payments</NavLink></>}
+          {user?.role === 'PHARMACY_STAFF' && <><NavLink to="/pharmacy/dashboard" onClick={() => setMenuOpen(false)}>Dashboard</NavLink><NavLink to="/pharmacy/inventory" onClick={() => setMenuOpen(false)}>Inventory</NavLink></>}
+          {user && <><Link className="nav-login" to={getDashboardPath(user.role)} onClick={() => setMenuOpen(false)}>{user.fullName.split(' ')[0]}'s space</Link><button className="nav-register nav-logout" type="button" onClick={() => { logout(); setMenuOpen(false) }}>Log out</button></>}
         </nav>
       </div>
     </header>
