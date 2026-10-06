@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { getCurrentUser, loginUser, logoutUser, registerUser, validateSession } from '../services/authService'
+import { getCurrentUser, loginUser, logoutUser, registerUser, updateCurrentUser, validateSession } from '../services/authService'
 
 const AuthContext = createContext(null)
 
@@ -47,7 +47,13 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, isAuthenticated: Boolean(user), register, login, logout }}>{children}</AuthContext.Provider>
+  const updateUser = (updates) => {
+    const updatedUser = updateCurrentUser(updates)
+    setUser(updatedUser)
+    return updatedUser
+  }
+
+  return <AuthContext.Provider value={{ user, isAuthenticated: Boolean(user), register, login, logout, updateUser }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

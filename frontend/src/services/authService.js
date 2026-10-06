@@ -88,6 +88,20 @@ export const getAccessToken = () =>
   localStorage.getItem(TOKEN_KEY) ||
   sessionStorage.getItem(TOKEN_KEY)
 
+export const updateCurrentUser = (updates) => {
+  const currentUser = getCurrentUser()
+  if (!currentUser) return null
+
+  const updatedUser = { ...currentUser, ...updates }
+  getStorage().setItem(SESSION_KEY, JSON.stringify(updatedUser))
+  return updatedUser
+}
+
+export const changePassword = async ({ currentPassword, newPassword }) => {
+  const response = await api.post('/auth/change-password', { currentPassword, newPassword })
+  return response.data
+}
+
 export const validateSession = async () => {
   const token = getAccessToken()
   const currentUser = getCurrentUser()

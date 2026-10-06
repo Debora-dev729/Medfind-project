@@ -3,7 +3,6 @@ package tz.medifind.controller;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,11 +15,15 @@ import tz.medifind.repository.PharmacyRepository;
 import tz.medifind.repository.UserRepository;
 
 import java.util.List;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/staff")
 public class AdminController {
+
+    private static final String PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository users;
     private final PharmacyRepository pharmacies;
@@ -45,7 +48,7 @@ public class AdminController {
     }
 
     @PostMapping
-    public ResponseEntity<StaffResponse> create(
+    public ResponseEntity<StaffCreationResponse> create(
         @Valid @RequestBody CreateStaffRequest request
     ) {
         String email = normalizeEmail(request.email());
@@ -56,19 +59,21 @@ public class AdminController {
             );
         }
 
-        requireActivePharmacy(request.pharmacyId());
+        requirePharmacy(request.pharmacyId());
+        String temporaryPassword = generateTemporaryPassword();
         User staff = new User(
             UUID.randomUUID().toString(),
             request.fullName().trim(),
             email,
             normalizePhone(request.phone()),
-            passwordEncoder.encode(request.password()),
+            "",
             UserRole.PHARMACY_STAFF,
             request.pharmacyId()
         );
+        staff.setTemporaryPasswordHash(passwordEncoder.encode(temporaryPassword));
 
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(toResponse(users.save(staff)));
+            .body(new StaffCreationResponse(toResponse(users.save(staff)), temporaryPassword));
     }
 
     @PutMapping("/{id}")
@@ -85,25 +90,12 @@ public class AdminController {
             );
         }
 
-        requireActivePharmacy(request.pharmacyId());
-        String password = request.password();
-        if (password != null && !password.isBlank()) {
-            if (password.length() < 8) {
-                throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Password must contain at least 8 characters."
-                );
-            }
-            password = passwordEncoder.encode(password);
-        } else {
-            password = null;
-        }
-
+        requirePharmacy(request.pharmacyId());
         staff.updateStaffDetails(
             request.fullName().trim(),
             email,
             normalizePhone(request.phone()),
-            password,
+            null,
             request.pharmacyId()
         );
         return toResponse(users.save(staff));
@@ -125,6 +117,15 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/reset-password")
+    public ResetPasswordResponse resetPassword(@PathVariable String id) {
+        User staff = findStaff(id);
+        String temporaryPassword = generateTemporaryPassword();
+        staff.setTemporaryPasswordHash(passwordEncoder.encode(temporaryPassword));
+        users.save(staff);
+        return new ResetPasswordResponse(temporaryPassword);
+    }
+
     private User findStaff(String id) {
         User staff = users.findById(id)
             .orElseThrow(() -> new ResponseStatusException(
@@ -140,19 +141,22 @@ public class AdminController {
         return staff;
     }
 
-    private Pharmacy requireActivePharmacy(String pharmacyId) {
+    private Pharmacy requirePharmacy(String pharmacyId) {
         Pharmacy pharmacy = pharmacies.findById(pharmacyId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Choose an existing pharmacy."
             ));
-        if (!pharmacy.isOperational()) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Staff accounts can only be assigned to an active pharmacy."
-            );
-        }
         return pharmacy;
+    }
+
+    private String generateTemporaryPassword() {
+        StringBuilder password = new StringBuilder("MDF-");
+        for (int index = 0; index < 12; index++) {
+            if (index > 0 && index % 4 == 0) password.append('-');
+            password.append(PASSWORD_ALPHABET.charAt(SECURE_RANDOM.nextInt(PASSWORD_ALPHABET.length())));
+        }
+        return password.toString();
     }
 
     private StaffResponse toResponse(User user) {
@@ -178,7 +182,6 @@ public class AdminController {
         @NotBlank String fullName,
         @NotBlank @Email String email,
         String phone,
-        @NotBlank @Size(min = 8) String password,
         @NotBlank String pharmacyId
     ) {}
 
@@ -186,7 +189,6 @@ public class AdminController {
         @NotBlank String fullName,
         @NotBlank @Email String email,
         String phone,
-        String password,
         @NotBlank String pharmacyId
     ) {}
 
@@ -200,4 +202,8 @@ public class AdminController {
         String pharmacyId,
         boolean active
     ) {}
+
+    public record StaffCreationResponse(StaffResponse staff, String temporaryPassword) {}
+
+    public record ResetPasswordResponse(String temporaryPassword) {}
 }

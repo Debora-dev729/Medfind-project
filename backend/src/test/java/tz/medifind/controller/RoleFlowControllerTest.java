@@ -5,6 +5,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import jakarta.servlet.FilterChain;
 import org.springframework.web.server.ResponseStatusException;
 import tz.medifind.model.AvailabilityStatus;
 import tz.medifind.model.InventoryItem;
@@ -33,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 class RoleFlowControllerTest {
 
@@ -59,18 +64,151 @@ class RoleFlowControllerTest {
         );
         when(users.existsByEmailIgnoreCase("staff@example.tz")).thenReturn(false);
         when(pharmacies.findById("pharmacy-1")).thenReturn(Optional.of(pharmacy));
-        when(encoder.encode("password123")).thenReturn("encoded-password");
+        when(encoder.encode(any(String.class))).thenAnswer(invocation -> "encoded:" + invocation.getArgument(0));
         when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = new AdminController(users, pharmacies, encoder).create(
             new AdminController.CreateStaffRequest(
-                " Staff Member ", "Staff@Example.Tz", null, "password123", "pharmacy-1"
+                " Staff Member ", "Staff@Example.Tz", null, "pharmacy-1"
             )
         );
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertEquals("staff@example.tz", response.getBody().email());
-        assertEquals("pharmacy-1", response.getBody().pharmacyId());
+        assertEquals("staff@example.tz", response.getBody().staff().email());
+        assertEquals("pharmacy-1", response.getBody().staff().pharmacyId());
+        assertTrue(response.getBody().staff().active());
+        assertTrue(response.getBody().temporaryPassword().matches("MDF-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}"));
+        verify(users).save(org.mockito.ArgumentMatchers.argThat(user ->
+            user.isMustChangePassword() && user.getPassword().startsWith("encoded:MDF-")
+        ));
+    }
+
+    @Test
+    void adminCanResetStaffPasswordAndResponseContainsOnlyNewTemporaryPassword() {
+        UserRepository users = mock(UserRepository.class);
+        PharmacyRepository pharmacies = mock(PharmacyRepository.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        User staff = new User("staff-1", "Staff", "staff@example.tz", "", "old-hash", UserRole.PHARMACY_STAFF, "pharmacy-1");
+        when(users.findById("staff-1")).thenReturn(Optional.of(staff));
+        when(encoder.encode(any(String.class))).thenAnswer(invocation -> "encoded:" + invocation.getArgument(0));
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = new AdminController(users, pharmacies, encoder).resetPassword("staff-1");
+
+        assertTrue(response.temporaryPassword().matches("MDF-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}"));
+        assertTrue(staff.getPassword().startsWith("encoded:MDF-"));
+        assertTrue(staff.isMustChangePassword());
+        assertTrue(!response.temporaryPassword().equals("old-hash"));
+    }
+
+    @Test
+    void passwordChangeVerifiesCurrentPasswordAndClearsFirstLoginFlag() {
+        UserRepository users = mock(UserRepository.class);
+        PharmacyRepository pharmacies = mock(PharmacyRepository.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        User staff = new User("staff-1", "Staff", "staff@example.tz", "", "old-hash", UserRole.PHARMACY_STAFF, "pharmacy-1");
+        staff.setTemporaryPasswordHash("old-hash");
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("staff-1");
+        when(users.findById("staff-1")).thenReturn(Optional.of(staff));
+        when(encoder.matches("temporary-password", "old-hash")).thenReturn(true);
+        when(encoder.encode("new-password-123")).thenReturn("new-hash");
+        when(users.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = new AuthController(users, encoder, mock(tz.medifind.security.JwtService.class), pharmacies)
+            .changePassword(authentication, new AuthController.ChangePasswordRequest("temporary-password", "new-password-123"));
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("new-hash", staff.getPassword());
+        assertTrue(!staff.isMustChangePassword());
+    }
+
+    @Test
+    void passwordChangeRejectsIncorrectCurrentPassword() {
+        UserRepository users = mock(UserRepository.class);
+        PharmacyRepository pharmacies = mock(PharmacyRepository.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        User staff = new User("staff-1", "Staff", "staff@example.tz", "", "old-hash", UserRole.PHARMACY_STAFF, "pharmacy-1");
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("staff-1");
+        when(users.findById("staff-1")).thenReturn(Optional.of(staff));
+        when(encoder.matches("wrong-password", "old-hash")).thenReturn(false);
+
+        ResponseStatusException error = assertThrows(
+            ResponseStatusException.class,
+            () -> new AuthController(users, encoder, mock(tz.medifind.security.JwtService.class), pharmacies)
+                .changePassword(authentication, new AuthController.ChangePasswordRequest("wrong-password", "new-password-123"))
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatusCode());
+        assertEquals("old-hash", staff.getPassword());
+        assertTrue(!staff.isMustChangePassword());
+    }
+
+    @Test
+    void temporaryPasswordUserIsAuthenticatedOnlyForPasswordChangeEndpoint() throws Exception {
+        UserRepository users = mock(UserRepository.class);
+        PharmacyRepository pharmacies = mock(PharmacyRepository.class);
+        tz.medifind.security.JwtService jwtService = mock(tz.medifind.security.JwtService.class);
+        io.jsonwebtoken.Claims claims = mock(io.jsonwebtoken.Claims.class);
+        User staff = new User("staff-1", "Staff", "staff@example.tz", "", "hash", UserRole.PHARMACY_STAFF, "pharmacy-1");
+        staff.setTemporaryPasswordHash("hash");
+        Pharmacy pharmacy = new Pharmacy("pharmacy-1", "Care", "Dar", "Road", "", "", 0, 0);
+        when(jwtService.extractClaims("valid-token")).thenReturn(claims);
+        when(claims.getSubject()).thenReturn("staff-1");
+        when(users.findById("staff-1")).thenReturn(Optional.of(staff));
+        when(pharmacies.findById("pharmacy-1")).thenReturn(Optional.of(pharmacy));
+        var filter = new tz.medifind.security.JwtAuthenticationFilter(jwtService, users, pharmacies);
+
+        for (String path : List.of("/api/pharmacies", "/api/reservations/patient/staff-1")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
+            request.setServletPath(path);
+            request.addHeader("Authorization", "Bearer valid-token");
+            Authentication[] observed = new Authentication[1];
+            FilterChain chain = (servletRequest, servletResponse) ->
+                observed[0] = SecurityContextHolder.getContext().getAuthentication();
+
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+            assertEquals(null, observed[0]);
+            SecurityContextHolder.clearContext();
+        }
+
+        MockHttpServletRequest changeRequest = new MockHttpServletRequest("POST", "/api/auth/change-password");
+        changeRequest.setServletPath("/api/auth/change-password");
+        changeRequest.addHeader("Authorization", "Bearer valid-token");
+        Authentication[] observed = new Authentication[1];
+        FilterChain changeChain = (servletRequest, servletResponse) ->
+            observed[0] = SecurityContextHolder.getContext().getAuthentication();
+
+        filter.doFilter(changeRequest, new MockHttpServletResponse(), changeChain);
+
+        assertEquals("staff-1", observed[0].getName());
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void loginResponseMarksStaffWhoMustChangeTheirPassword() {
+        UserRepository users = mock(UserRepository.class);
+        PharmacyRepository pharmacies = mock(PharmacyRepository.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        tz.medifind.security.JwtService jwtService = mock(tz.medifind.security.JwtService.class);
+        User staff = new User("staff-1", "Staff", "staff@example.tz", "", "hash", UserRole.PHARMACY_STAFF, "pharmacy-1");
+        staff.setTemporaryPasswordHash("hash");
+        Pharmacy pharmacy = new Pharmacy("pharmacy-1", "Care", "Dar", "Road", "", "", 0, 0);
+        when(users.findByEmailIgnoreCase("staff@example.tz")).thenReturn(Optional.of(staff));
+        when(pharmacies.findById("pharmacy-1")).thenReturn(Optional.of(pharmacy));
+        when(encoder.matches("temporary-password", "hash")).thenReturn(true);
+        when(jwtService.generateToken(staff)).thenReturn("jwt");
+
+        var response = new AuthController(users, encoder, jwtService, pharmacies)
+            .login(new AuthController.LoginRequest("staff@example.tz", "temporary-password"));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> body = (Map<String, Object>) response.getBody();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> user = (Map<String, Object>) body.get("user");
+        assertEquals(true, user.get("mustChangePassword"));
+        assertTrue(!user.containsKey("password"));
     }
 
     @Test

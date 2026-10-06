@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -102,6 +104,25 @@ public class AuthController {
         );
     }
 
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+        Authentication authentication,
+        @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        User user = users.findById(authentication.getName())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Authenticated account was not found."
+            ));
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect.");
+        }
+
+        user.changePassword(passwordEncoder.encode(request.newPassword()));
+        users.save(user);
+        return ResponseEntity.ok(Map.of("mustChangePassword", false));
+    }
+
     private Map<String, Object> userResponse(User user) {
         return Map.of(
             "id", user.getId(),
@@ -109,7 +130,8 @@ public class AuthController {
             "email", user.getEmail(),
             "phone", user.getPhone() == null ? "" : user.getPhone(),
             "role", user.getRole().name(),
-            "pharmacyId", user.getPharmacyId() == null ? "" : user.getPharmacyId()
+            "pharmacyId", user.getPharmacyId() == null ? "" : user.getPharmacyId(),
+            "mustChangePassword", user.isMustChangePassword()
         );
     }
 
@@ -132,4 +154,9 @@ public class AuthController {
         String role
     ) {
     }
+
+    public record ChangePasswordRequest(
+        @NotBlank String currentPassword,
+        @NotBlank @Size(min = 8, max = 72) String newPassword
+    ) {}
 }

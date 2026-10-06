@@ -6,10 +6,15 @@ const api = axios.create({
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('medifind_access_token')
+  const storage = localStorage.getItem('medifind_remember') === 'true'
+    ? localStorage
+    : sessionStorage
+  const token = storage.getItem('medifind_access_token')
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  } else {
+    delete config.headers.Authorization
   }
 
   return config

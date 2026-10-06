@@ -29,6 +29,9 @@ public class User {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean active = true;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean mustChangePassword;
+
     protected User() {
     }
 
@@ -80,6 +83,20 @@ public class User {
 
     public boolean isActive() {
         return active;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setTemporaryPasswordHash(String passwordHash) {
+        this.password = passwordHash;
+        this.mustChangePassword = true;
+    }
+
+    public void changePassword(String passwordHash) {
+        this.password = passwordHash;
+        this.mustChangePassword = false;
     }
 
     public void updateStaffDetails(

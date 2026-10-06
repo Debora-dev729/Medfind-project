@@ -67,20 +67,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
 
-            var authorities = List.of(
-                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-            );
+            if (user.isMustChangePassword() &&
+                !"/api/auth/change-password".equals(request.getServletPath())) {
+                SecurityContextHolder.clearContext();
+            } else {
+                var authorities = List.of(
+                    new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
+                );
 
-            var authentication = new UsernamePasswordAuthenticationToken(
-                userId,
-                null,
-                authorities
-            );
+                var authentication = new UsernamePasswordAuthenticationToken(
+                    userId,
+                    null,
+                    authorities
+                );
 
-            authentication.setDetails(user.getPharmacyId());
+                authentication.setDetails(user.getPharmacyId());
 
-            SecurityContextHolder.getContext()
-                .setAuthentication(authentication);
+                SecurityContextHolder.getContext()
+                    .setAuthentication(authentication);
+            }
 
         } catch (Exception exception) {
             SecurityContextHolder.clearContext();

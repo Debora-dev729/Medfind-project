@@ -25,7 +25,9 @@ function Login() {
 
     try {
       const user = await login(form)
-      const destination = location.state?.from || getDashboardPath(user.role)
+      const destination = user.role === 'PHARMACY_STAFF' && user.mustChangePassword
+        ? '/pharmacy/change-password'
+        : location.state?.from || getDashboardPath(user.role)
       navigate(destination, { replace: true })
     } catch (submitError) {
       setError(submitError.message)

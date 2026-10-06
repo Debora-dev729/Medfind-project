@@ -10,6 +10,11 @@ export const createPharmacyStaff = async (staff) => {
   return response.data
 }
 
+export const resetPharmacyStaffPassword = async (id) => {
+  const response = await api.post(`/admin/staff/${id}/reset-password`)
+  return response.data
+}
+
 export const updatePharmacyStaff = async (id, staff) => {
   const response = await api.put(`/admin/staff/${id}`, staff)
   return response.data

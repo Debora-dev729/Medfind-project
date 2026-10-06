@@ -9,6 +9,7 @@ import Register from '../pages/Register'
 import ProtectedRoute from '../components/ProtectedRoute'
 import PatientDashboard from '../pages/PatientDashboard'
 import PharmacyDashboard from '../pages/PharmacyDashboard'
+import ChangePassword from '../pages/ChangePassword'
 import PharmacyInventory from '../pages/PharmacyInventory'
 import AdminDashboard from '../pages/AdminDashboard'
 import StaffManagement from '../pages/StaffManagement'
@@ -31,6 +32,7 @@ function AppRoutes() {
             <Route path="/patient/dashboard" element={<PatientDashboard />} />
           </Route>
           <Route element={<ProtectedRoute roles={['PHARMACY_STAFF']} />}>
+            <Route path="/pharmacy/change-password" element={<ChangePassword />} />
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboard />} />
             <Route path="/pharmacy/inventory" element={<PharmacyInventory />} />
           </Route>

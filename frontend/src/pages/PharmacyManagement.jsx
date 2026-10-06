@@ -41,6 +41,7 @@ function PharmacyManagement({ initialFilter = 'pending' }) {
   const [filter, setFilter] = useState(initialFilter)
   const [pharmacies, setPharmacies] = useState([])
   const [selected, setSelected] = useState(null)
+  const [createdPharmacy, setCreatedPharmacy] = useState(null)
   const [form, setForm] = useState(emptyPharmacy)
   const [editingId, setEditingId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -144,7 +145,8 @@ function PharmacyManagement({ initialFilter = 'pending' }) {
         await updateAdminPharmacy(editingId, details)
         setMessage('Pharmacy details updated.')
       } else {
-        await createAdminPharmacy(details)
+        const pharmacy = await createAdminPharmacy(details)
+        setCreatedPharmacy({ id: pharmacy.id, name: pharmacy.name })
         setMessage('Pharmacy created. Verify payment before staff access and activation.')
       }
       setForm(emptyPharmacy)
@@ -180,6 +182,7 @@ function PharmacyManagement({ initialFilter = 'pending' }) {
         </header>
         {error && <p className="auth-error" role="alert">{error}</p>}
         {message && <p className="auth-message" role="status">{message}</p>}
+        {createdPharmacy && <p className="auth-message">Next, <Link to={`/admin/staff?pharmacyId=${encodeURIComponent(createdPharmacy.id)}`}>create staff for {createdPharmacy.name}</Link>. Staff can sign in after the pharmacy is activated.</p>}
 
         {(isNewRoute || editingId) && <form className="pharmacy-admin-form" onSubmit={savePharmacy}>
           <div className="pharmacy-admin-form-heading"><div><p className="eyebrow">Admin workspace</p><h2>{editingId ? 'Edit pharmacy' : 'Add pharmacy'}</h2></div><button className="button button-secondary" type="button" onClick={cancelForm}>Cancel</button></div>
