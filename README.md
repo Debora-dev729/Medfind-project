@@ -103,6 +103,16 @@ The frontend communicates with the backend through the REST API.
 
 The API URL can be overridden with the `VITE_API_URL` environment variable.
 
+## Deployment
+
+### Frontend (Vercel)
+
+Import the repository into Vercel and leave the project root directory at the repository root (`.`). The root `vercel.json` installs frontend dependencies, runs the production build, publishes `frontend/dist`, and rewrites client-side routes. Set `VITE_API_URL` to the deployed Render API URL ending in `/api`. If Vercel has custom root-directory or build/install command overrides, reset the root directory to `.` and clear those overrides to use the repository configuration.
+
+### Backend (Render)
+
+The root `render.yaml` defines the Docker-based API service. Create a PostgreSQL database in Render and configure `DB_URL` using the JDBC format `jdbc:postgresql://HOST:PORT/DATABASE`, plus `DB_USERNAME` and `DB_PASSWORD`. Use the database's internal hostname when the database and service share a Render region. Render generates `JWT_SECRET`; set `CORS_ALLOWED_ORIGINS` to the deployed Vercel origin (comma-separate any additional allowed origins). Keep database credentials and the JWT secret on Render, not in Vercel frontend variables.
+
 ## Authentication
 
 MediFind uses JWT authentication.

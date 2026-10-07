@@ -78,7 +78,7 @@ function PharmacyInventory() {
       setInventory((current) =>
         current.map((currentItem) =>
           currentItem.medicineId === savedItem.medicineId
-            ? savedItem
+            ? { ...currentItem, ...savedItem }
             : currentItem,
         ),
       )

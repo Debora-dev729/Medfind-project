@@ -1,29 +1,45 @@
-import { mockPharmacies } from '../data/mockPharmacies'
-import { mockMedicines } from '../data/mockMedicines'
-import { getInventoryOverrides } from './inventoryService'
+import api from './api'
+import { mapAvailability, mapPharmacy } from './dataMappers'
 
 export const getPharmacyById = async (id) => {
-  const pharmacy = mockPharmacies.find((item) => item.id === id)
-  if (!pharmacy) return null
-  const overrides = getInventoryOverrides(id)
-  const medicines = Object.fromEntries(Object.entries(pharmacy.medicines).map(([medicineId, availability]) => [
-    medicineId,
-    { ...availability, ...(overrides[medicineId] || {}) },
-  ]))
+  const [pharmacyResponse, medicineResponse] = await Promise.all([
+    api.get(`/pharmacies/${id}`),
+    api.get('/medicines'),
+  ])
+  const { pharmacy, inventory } = pharmacyResponse.data
+  const medicines = new Map(
+    medicineResponse.data.map(({ medicine }) => [medicine.id, medicine]),
+  )
 
   return {
-    ...pharmacy,
-    medicines: Object.entries(medicines).map(([medicineId, availability]) => ({
-      medicine: mockMedicines.find((item) => item.id === medicineId),
-      availability,
-    })),
+    ...mapPharmacy(pharmacy),
+    medicines: inventory.flatMap((item) => {
+      const medicine = medicines.get(item.medicineId)
+      return medicine && item.quantity > 0 && item.status !== 'OUT_OF_STOCK'
+        ? [{ medicine, availability: mapAvailability(item) }]
+        : []
+    }),
   }
 }
 
-export const getNearbyPharmacies = async () => mockPharmacies.map((pharmacy) => ({
-  ...pharmacy,
-  medicines: Object.fromEntries(Object.entries(pharmacy.medicines).map(([medicineId, availability]) => [
-    medicineId,
-    { ...availability, ...(getInventoryOverrides(pharmacy.id)[medicineId] || {}) },
-  ])),
-}))
+export const getNearbyPharmacies = async () => {
+  const [pharmacyResponse, medicineResponse] = await Promise.all([
+    api.get('/pharmacies'),
+    api.get('/medicines'),
+  ])
+  const medicinesByPharmacy = new Map()
+
+  medicineResponse.data.forEach(({ medicine, availability }) => {
+    availability.forEach((item) => {
+      if (!medicinesByPharmacy.has(item.pharmacyId)) {
+        medicinesByPharmacy.set(item.pharmacyId, {})
+      }
+      medicinesByPharmacy.get(item.pharmacyId)[medicine.id] = mapAvailability(item)
+    })
+  })
+
+  return pharmacyResponse.data.map((pharmacy) => ({
+    ...mapPharmacy(pharmacy),
+    medicines: medicinesByPharmacy.get(pharmacy.id) || {},
+  }))
+}
