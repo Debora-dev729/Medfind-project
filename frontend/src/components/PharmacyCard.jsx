@@ -17,7 +17,7 @@ function PharmacyCard({ pharmacy, availability, medicineId }) {
           <h3>{pharmacy.name}</h3>
           {pharmacy.verified && <span className="verified-label"><span aria-hidden="true">✓</span> Verified pharmacy</span>}
         </div>
-        <span className="distance">{pharmacy.distance} km</span>
+        {Number.isFinite(pharmacy.distance) && <span className="distance">{pharmacy.distance} km</span>}
       </div>
       <div className="pharmacy-location"><span aria-hidden="true">⌖</span>{pharmacy.address}, {pharmacy.city}</div>
       {pharmacy.phone && <div className="pharmacy-location"><span aria-hidden="true">☎</span><a href={`tel:${pharmacy.phone}`}>{pharmacy.phone}</a></div>}
